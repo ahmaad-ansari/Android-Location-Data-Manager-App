@@ -150,7 +150,4 @@
             app:layout_constraintTop_toBottomOf="@+id/buttonQuery"
             tools:layout_editor_absoluteX="16dp" />
     </ScrollView>
-
-
-
 </androidx.constraintlayout.widget.ConstraintLayout>
