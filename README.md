@@ -9,7 +9,10 @@ The Android Location Data Manager App is a comprehensive solution for managing a
 Below are screenshots of the Android Location Data Manager app in action:
 
 <div style="display: flex; justify-content: space-between;">
-  <img src="https://github.com/ahmaad-ansari/SOFE4640U-Assignment-2/assets/88805493/b35b5168-dffb-4f16-8d56-27ab1e12a076" alt="App Screenshot" width="300">
+  <img src="https://github.com/ahmaad-ansari/SOFE4640U-Assignment-2/assets/88805493/4a932ad1-98cb-4a46-8a02-dadce16cda98" alt="App Screenshot2" width="300">
+  <img src="https://github.com/ahmaad-ansari/SOFE4640U-Assignment-2/assets/88805493/6e76d819-61d9-41bb-a44a-1b16e1709027" alt="App Screenshot3" width="300">
+  <img src="https://github.com/ahmaad-ansari/SOFE4640U-Assignment-2/assets/88805493/6109e7e6-5133-47ac-8073-e604222cd3d4" alt="App Screenshot4" width="300">
+  <img src="https://github.com/ahmaad-ansari/SOFE4640U-Assignment-2/assets/88805493/b35b5168-dffb-4f16-8d56-27ab1e12a076" alt="App Screenshot1" width="300">
 </div>
 
 ## Features
