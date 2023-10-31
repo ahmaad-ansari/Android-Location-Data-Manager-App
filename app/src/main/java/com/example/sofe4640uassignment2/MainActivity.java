@@ -1,228 +1,180 @@
 package com.example.sofe4640uassignment2;
 
-import androidx.appcompat.app.AppCompatActivity;
-
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
+import android.os.Environment;
+import android.util.Log;
 import android.view.View;
-import android.widget.ArrayAdapter;
-import android.widget.EditText;
-import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.google.android.material.textfield.TextInputEditText;
+import androidx.appcompat.app.AppCompatActivity;
 
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.util.ArrayList;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.util.Collections;
 import java.util.List;
 
-// MainActivity is the main activity of the application
 public class MainActivity extends AppCompatActivity {
 
-    // UI Elements
-    private TextInputEditText editTextAddress;
-    private TextInputEditText editTextLatitude;
-    private TextInputEditText editTextLongitude;
+    private static final int PICK_JSON_FILE_REQUEST_CODE = 123; // Replace with your request code
+    private static final String FILENAME = "locations.json";
 
-    // List and Adapter for displaying location information
-    private ArrayAdapter<String> adapter;
-    private List<String> locationList = new ArrayList<>();
+    private TextView JSONTextView;
+    private Uri selectedJsonFileUri; // Declare a variable to store the selected JSON file URI
+
+    private LocationDbHelper dbHelper;
+    private GeocodingUtils geocodingUtils;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        // Initialize UI elements and adapter
-        editTextAddress = findViewById(R.id.editTextAddress);
-        editTextLatitude = findViewById(R.id.editTextLatitude);
-        editTextLongitude = findViewById(R.id.editTextLongitude);
+        dbHelper = new LocationDbHelper(this);
+        dbHelper.clearDatabase();
 
-        ListView listViewLocations = findViewById(R.id.listViewLocations);
-        adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, locationList);
-        listViewLocations.setAdapter(adapter);
+        JSONTextView = findViewById(R.id.JSONTextView);
 
-        // Display all stored locations
-        displayAllLocations();
-
-        // Try to store locations from a JSON resource file
-        try {
-            storeLocations();
-        } catch (JSONException e) {
-            throw new RuntimeException(e);
-        }
+        copyRawResourceToExternalStorage(FILENAME);
+        geocodingUtils = new GeocodingUtils(this);
     }
 
-    // Display all stored locations in the ListView
-    private void displayAllLocations() {
-        LocationDbHelper dbHelper = new LocationDbHelper(this);
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
 
-        // Retrieve a list of location information from the database
-        List<JSONObject> locations = dbHelper.getAllLocations();
-
-        locationList.clear();
-        for (JSONObject location : locations) {
-            try {
-                String address = location.getString("address");
-                double latitude = location.getDouble("latitude");
-                double longitude = location.getDouble("longitude");
-
-                // Create a formatted string with address, latitude, and longitude
-                String locationInfo = "Address: " + address + "\nLatitude: " + latitude + ", Longitude: " + longitude;
-                locationList.add(locationInfo);
-            } catch (JSONException e) {
-                e.printStackTrace();
+        if (requestCode == PICK_JSON_FILE_REQUEST_CODE && resultCode == RESULT_OK) {
+            if (data != null) {
+                // Get the selected JSON file URI
+                selectedJsonFileUri = data.getData();
+                // Handle the selected JSON file
+                handleJsonFile(selectedJsonFileUri);
             }
         }
-        adapter.notifyDataSetChanged();
     }
 
-    // Store locations from a JSON resource file into the database
-    private void storeLocations() throws JSONException {
-        LocationUtils locationUtils = new LocationUtils(this);
+    public void uploadFile(View view) {
+        // Create an intent to open a file picker
+        Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+        intent.setType("application/json"); // Set the MIME type to filter JSON files
 
-        // Retrieve a list of location data from a JSON resource file
-        List<JSONObject> locations = locationUtils.getLocationsFromJson();
+        startActivityForResult(intent, PICK_JSON_FILE_REQUEST_CODE);
+    }
 
-        GeocodingUtils geocodingUtils = new GeocodingUtils(this);
+    private void handleJsonFile(Uri jsonFileUri) {
+        try {
+            // Read the contents of the JSON file
+            InputStream inputStream = getContentResolver().openInputStream(jsonFileUri);
+            BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
+            StringBuilder stringBuilder = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                stringBuilder.append(line).append("\n");
+            }
+            inputStream.close();
 
-        // Retrieve a list of addresses for the locations
-        List<String> addresses = geocodingUtils.getAddressesFromLocations(locations);
+            // Set the JSON content to the TextView
+            JSONTextView.setText(stringBuilder.toString());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 
-        LocationDbHelper dbHelper = new LocationDbHelper(this);
+    public void generateLocationsDatabase(View view) {
+        if (selectedJsonFileUri != null) {
+            try {
+                // Read the JSON file content
+                String jsonContent = readJsonFile(selectedJsonFileUri);
 
-        for (int i = 0; i < addresses.size(); i++) {
-            String address = addresses.get(i);
-            double latitude = locations.get(i).getDouble("lat");
-            double longitude = locations.get(i).getDouble("lng");
+                // Log the JSON content to the console
+                Log.d("JSON_CONTENT", jsonContent);
 
-            // Insert each location into the database
+                // Now, parse the JSON content and store locations in the database
+                storeLocationsFromJson(jsonContent);
+                Toast.makeText(this, "Locations stored in the database.", Toast.LENGTH_SHORT).show();
+
+                Intent intent = new Intent(MainActivity.this, DetailActivity.class);
+                startActivity(intent);
+            } catch (JSONException e) {
+                e.printStackTrace();
+
+                // Log the error message to the console
+                Log.e("JSON_PARSING_ERROR", "Error parsing JSON: " + e.getMessage());
+
+                Toast.makeText(this, "Error parsing JSON.", Toast.LENGTH_SHORT).show();
+            }
+        } else {
+            Toast.makeText(this, "No JSON file selected.", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void copyRawResourceToExternalStorage(String filename) {
+        try {
+            // Create a file in the "Downloads" folder on external storage
+            File externalFile = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), filename);
+
+            // Create output stream for the external file
+            try (OutputStream os = new FileOutputStream(externalFile);
+                 InputStream is = getResources().openRawResource(R.raw.locations)) {
+                // Copy the contents from the raw resource to the external file
+                byte[] buffer = new byte[1024];
+                int bytesRead;
+                while ((bytesRead = is.read(buffer)) != -1) {
+                    os.write(buffer, 0, bytesRead);
+                }
+            }
+
+            // Now the file is copied to the "Downloads" folder on external storage and is publicly accessible.
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private String readJsonFile(Uri jsonFileUri) {
+        StringBuilder stringBuilder = new StringBuilder();
+        try {
+            InputStream inputStream = getContentResolver().openInputStream(jsonFileUri);
+            BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
+            String line;
+            while ((line = reader.readLine()) != null) {
+                stringBuilder.append(line).append("\n");
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return stringBuilder.toString();
+    }
+
+    private void storeLocationsFromJson(String jsonContent) throws JSONException {
+        // Parse the JSON content and store locations in the database
+        JSONArray jsonArray = new JSONArray(jsonContent);
+
+        for (int i = 0; i < jsonArray.length(); i++) {
+            JSONObject locationObject = jsonArray.getJSONObject(i);
+            double latitude = locationObject.getDouble("lat");
+            double longitude = locationObject.getDouble("lng");
+
+            // Get the address for the location using geocoding
+            List<String> addresses = geocodingUtils.getAddressesFromLocations(
+                    Collections.singletonList(locationObject)
+            );
+
+            // Use the first address from the list (assuming one address is returned)
+            String address = addresses.isEmpty() ? "" : addresses.get(0);
+
+            // Insert the new location object into the database
             dbHelper.insertLocation(address, latitude, longitude);
         }
-    }
-
-    // Query and display latitude and longitude for a given address
-    public void queryAddress(View view) {
-        EditText editTextAddress = findViewById(R.id.editTextAddress);
-        TextView textViewLatitude = findViewById(R.id.textViewLatitude);
-        TextView textViewLongitude = findViewById(R.id.textViewLongitude);
-
-        String addressQuery = editTextAddress.getText().toString();
-        LocationDbHelper dbHelper = new LocationDbHelper(this);
-
-        // Query the database for location data based on the provided address
-        JSONObject result = dbHelper.queryLocation(addressQuery);
-
-        if (result != null) {
-            try {
-                double latitude = result.getDouble("latitude");
-                double longitude = result.getDouble("longitude");
-
-                // Display the latitude and longitude
-                textViewLatitude.setText("Latitude: " + latitude);
-                textViewLongitude.setText("Longitude: " + longitude);
-            } catch (JSONException e) {
-                e.printStackTrace();
-            }
-        } else {
-            // Display a message indicating that the address was not found
-            textViewLatitude.setText("Latitude: Not Found");
-            textViewLongitude.setText("Longitude: Not Found");
-        }
-        displayAllLocations();
-    }
-
-    // Add a new location to the database
-    public void addLocation(View view) {
-        String address = editTextAddress.getText().toString();
-        String latitudeString = editTextLatitude.getText().toString().trim();
-        String longitudeString = editTextLongitude.getText().toString().trim();
-
-        if (latitudeString.isEmpty() || longitudeString.isEmpty()) {
-            // Display a message if latitude or longitude is missing
-            Toast.makeText(this, "Please enter valid latitude and longitude", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        double latitude, longitude;
-        try {
-            // Parse latitude and longitude values
-            latitude = Double.parseDouble(latitudeString);
-            longitude = Double.parseDouble(longitudeString);
-        } catch (NumberFormatException e) {
-            // Display a message if latitude or longitude format is invalid
-            Toast.makeText(this, "Invalid latitude or longitude format", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        LocationDbHelper dbHelper = new LocationDbHelper(this);
-
-        // Add the new location to the database
-        long result = dbHelper.addLocation(address, latitude, longitude);
-
-        if (result != -1) {
-            // Display a message indicating a successful addition
-            Toast.makeText(this, "Location added!", Toast.LENGTH_SHORT).show();
-        } else {
-            // Display a message indicating an error
-            Toast.makeText(this, "Error adding location.", Toast.LENGTH_SHORT).show();
-        }
-        displayAllLocations();
-    }
-
-    // Delete a location from the database
-    public void deleteLocation(View view) {
-        String address = editTextAddress.getText().toString();
-        LocationDbHelper dbHelper = new LocationDbHelper(this);
-
-        // Delete the location from the database
-        int rowsDeleted = dbHelper.deleteLocationByAddress(address);
-
-        if (rowsDeleted > 0) {
-            // Display a message indicating a successful deletion
-            Toast.makeText(this, "Location deleted!", Toast.LENGTH_SHORT).show();
-        } else {
-            // Display a message indicating an error
-            Toast.makeText(this, "Error deleting location.", Toast.LENGTH_SHORT).show();
-        }
-        displayAllLocations();
-    }
-
-    // Update an existing location in the database
-    public void updateLocation(View view) {
-        String address = editTextAddress.getText().toString();
-        String latitudeString = editTextLatitude.getText().toString().trim();
-        String longitudeString = editTextLongitude.getText().toString().trim();
-
-        if (latitudeString.isEmpty() || longitudeString.isEmpty()) {
-            // Display a message if latitude or longitude is missing
-            Toast.makeText(this, "Please enter valid latitude and longitude", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        double latitude, longitude;
-        try {
-            // Parse latitude and longitude values
-            latitude = Double.parseDouble(latitudeString);
-            longitude = Double.parseDouble(longitudeString);
-        } catch (NumberFormatException e) {
-            // Display a message if latitude or longitude format is invalid
-            Toast.makeText(this, "Invalid latitude or longitude format", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        LocationDbHelper dbHelper = new LocationDbHelper(this);
-
-        // Update the location in the database
-        int rowsUpdated = dbHelper.updateLocation(address, address, latitude, longitude); // Using the same address for old and new for
-
-        if (rowsUpdated > 0) {
-            Toast.makeText(this, "Location updated!", Toast.LENGTH_SHORT).show();
-        } else {
-            Toast.makeText(this, "Error updating location.", Toast.LENGTH_SHORT).show();
-        }
-        displayAllLocations();
     }
 }

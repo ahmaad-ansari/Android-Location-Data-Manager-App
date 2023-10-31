@@ -33,6 +33,12 @@ android {
 
 dependencies {
 
+    implementation("androidx.activity:activity-ktx:1.4.0")
+    implementation("androidx.fragment:fragment-ktx:1.4.0")
+    implementation("androidx.lifecycle:lifecycle-viewmodel:2.3.1")
+    implementation("androidx.lifecycle:lifecycle-livedata:2.3.1")
+    implementation("androidx.lifecycle:lifecycle-runtime:2.3.1")
+
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("com.google.android.material:material:1.10.0")
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")

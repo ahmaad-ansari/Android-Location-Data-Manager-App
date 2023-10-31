@@ -20,7 +20,7 @@ public class LocationUtils {
     }
 
     // Reads JSON data from a raw resource file and returns a list of JSON objects
-    public List<JSONObject> getLocationsFromJson() {
+    public List<JSONObject> getLocationsFromJson(String jsonContent) {
         List<JSONObject> locationList = new ArrayList<>();
         try {
             // Open the raw resource file "locations.json" and obtain an InputStream

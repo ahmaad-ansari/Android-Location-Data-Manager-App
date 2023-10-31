@@ -47,6 +47,12 @@ public class LocationDbHelper extends SQLiteOpenHelper {
         onCreate(db);
     }
 
+    public void clearDatabase() {
+        SQLiteDatabase db = this.getWritableDatabase();
+        db.execSQL("DELETE FROM " + LocationContract.LocationEntry.TABLE_NAME);
+        db.close();
+    }
+
     // Insert a location into the database
     public void insertLocation(String address, double latitude, double longitude) {
         SQLiteDatabase db = getWritableDatabase();
