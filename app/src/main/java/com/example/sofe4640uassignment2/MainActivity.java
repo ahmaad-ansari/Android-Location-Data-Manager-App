@@ -144,8 +144,13 @@ public class MainActivity extends AppCompatActivity {
     private String readJsonFile(Uri jsonFileUri) {
         StringBuilder stringBuilder = new StringBuilder();
         try {
+            // Open an input stream for the selected JSON file
             InputStream inputStream = getContentResolver().openInputStream(jsonFileUri);
+
+            // Create a reader to read the input stream
             BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
+
+            // Read the file line by line and append it to the StringBuilder
             String line;
             while ((line = reader.readLine()) != null) {
                 stringBuilder.append(line).append("\n");
